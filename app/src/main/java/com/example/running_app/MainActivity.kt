@@ -15,12 +15,18 @@ import android.location.Location
 import android.location.LocationManager
 import android.os.Looper
 import android.widget.Toast
-import com.google.android.gms.location.LocationAvailability
 import com.google.android.gms.location.LocationCallback
 import com.google.android.gms.location.LocationRequest
 import com.google.android.gms.location.LocationResult
 import com.google.android.gms.location.Priority
 import android.os.Handler
+import com.github.mikephil.charting.charts.LineChart
+import com.github.mikephil.charting.components.XAxis
+import com.github.mikephil.charting.data.Entry
+import com.github.mikephil.charting.data.LineDataSet
+import com.github.mikephil.charting.data.LineData
+import kotlin.math.round
+
 
 class MainActivity : AppCompatActivity() {
 
@@ -49,6 +55,7 @@ class MainActivity : AppCompatActivity() {
                 previousLocation = currentLocation
 
                 updateUI()
+                updateGraph(elapsedTimeInSeconds.toFloat(),currentSpeed)
             }
         }
     }
@@ -69,6 +76,8 @@ class MainActivity : AppCompatActivity() {
             requestLocationPermission()
         }
 
+        setupGraph()
+
         binding.btnStart.setOnClickListener(){
             if (!appSwitch){
                 if (checkLocationPermission()){
@@ -77,6 +86,7 @@ class MainActivity : AppCompatActivity() {
                     binding.playStop.setImageResource(R.drawable.stop)
                     resetChronometer()
                     initChronometer()
+                    resetGraph()
                     appSwitch=true
                 }
                 else{
@@ -126,7 +136,7 @@ class MainActivity : AppCompatActivity() {
             if (checkLocationPermission()) {
                 val locationRequest = LocationRequest.Builder(
                     Priority.PRIORITY_HIGH_ACCURACY,
-                    5000
+                    10000
                 ).apply {
                     setWaitForAccurateLocation(false)
                 }.build()
@@ -200,5 +210,106 @@ class MainActivity : AppCompatActivity() {
 
     private fun stopChronometer(){
         handler.removeCallbacks(timerRunnable)
+    }
+
+
+
+    private lateinit var dataSet: LineDataSet
+
+    private val graphEntries = mutableListOf<Entry>(Entry(0f, 0f))
+
+    private var alternator:Boolean = true
+
+    private fun setupGraph() {
+        dataSet = LineDataSet(graphEntries, "").apply {
+            color = 0xFF2196F3.toInt()
+            lineWidth = 2f
+            setDrawCircles(false)
+            setDrawValues(false)
+        }
+
+        binding.speedGraph.apply {
+            data = LineData(dataSet) // Asigna el dataset al gráfico
+            description.text = ""
+            animateY(1000)
+
+            // Configuración anti-zoom
+            setScaleEnabled(false)              // 1. Deshabilita escalado general
+            isScaleXEnabled = false             // 2. Zoom específico en eje X
+            isScaleYEnabled = false             // 3. Zoom específico en eje Y
+            setPinchZoom(false)                 // 4. Desactiva zoom con gesto de pellizco
+            setDoubleTapToZoomEnabled(false)    // 5. Desactiva zoom con doble toque
+
+            // Configurar eje X
+            xAxis.apply {
+                position = XAxis.XAxisPosition.BOTTOM
+                granularity = 1f
+                axisMinimum = 0f
+            }
+
+            // Configurar eje Y izquierdo
+            axisLeft.apply {
+                granularity = 1f
+                axisMinimum = 0f
+            }
+            // Ocultar eje Y derecho
+            axisRight.isEnabled = false
+
+            isAutoScaleMinMaxEnabled = true
+        }
+    }
+
+    private fun updateGraph(x: Float, y: Float) {
+        if(alternator) {
+            val newEntry = Entry(
+                (round(x * 10) / 10),
+                (round(y * 10) / 10)
+            ) // Crea el punto con x e y recibidos
+            graphEntries.add(newEntry)
+
+            binding.speedGraph.xAxis.apply {
+                axisMaximum = x // Máximo = último valor X
+                axisMinimum = 0f // Mínimo fijo en 0
+                setLabelCount(5, true) // Mostrar 5 etiquetas (ajusta según necesidad)
+            }
+
+            // Notifica al gráfico que los datos cambiaron
+            dataSet.notifyDataSetChanged()
+            binding.speedGraph.data?.notifyDataChanged()
+            binding.speedGraph.invalidate() // Refresca la vista
+
+            alternator = !alternator
+        }
+        else {
+            alternator = !alternator
+        }
+    }
+
+    fun resetGraph() {
+        // 1. Limpiar y restaurar la lista de entradas
+        graphEntries.clear()
+        graphEntries.add(Entry(0f, 0f))  // Punto inicial (0,0)
+
+        // 2. Restablecer configuración del dataset
+        dataSet.apply {
+            clear()  // Limpiar datos antiguos
+            notifyDataSetChanged()  // Notificar cambios
+        }
+
+        // 3. Actualizar ejes y gráfico
+        binding.speedGraph.apply {
+            // Restablecer límites del eje X
+            xAxis.axisMaximum = 0f
+            xAxis.axisMinimum = 0f
+
+            // Restablecer eje Y
+            axisLeft.axisMinimum = 0f
+
+            // Forzar actualización completa
+            data = LineData(dataSet)  // Reasignar datos
+            notifyDataSetChanged()    // Notificar cambios
+            invalidate()              // Redibujar
+        }
+        alternator=true
     }
 }
