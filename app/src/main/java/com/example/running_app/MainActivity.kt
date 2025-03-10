@@ -136,7 +136,7 @@ class MainActivity : AppCompatActivity() {
             if (checkLocationPermission()) {
                 val locationRequest = LocationRequest.Builder(
                     Priority.PRIORITY_HIGH_ACCURACY,
-                    10000
+                    5000
                 ).apply {
                     setWaitForAccurateLocation(false)
                 }.build()
